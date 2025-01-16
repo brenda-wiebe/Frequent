@@ -1,0 +1,13 @@
+SELECT distinct [STUDENT_NUMBER]
+      ,[SCHOOL_YEAR]
+      ,[WINDOW]
+      ,[SCHOOL_NUMBER]
+      ,[GRADE_LEVEL]
+      ,max([Composite_Level_full])  [Composite_Level_full]
+  FROM [ASSESSMENT_DATA_MART].[Assessment].[MASTER_Acadience,Dibels]
+
+   group by [STUDENT_NUMBER]
+      ,[SCHOOL_YEAR]
+      ,[WINDOW]
+      ,[SCHOOL_NUMBER]
+      ,[GRADE_LEVEL]
