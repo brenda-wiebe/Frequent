@@ -1,0 +1,168 @@
+
+require(tidyverse)
+require(openxlsx)
+require(odbc)
+require(DBI)
+require(ggplot2)
+require(gridExtra)
+require(viridis)
+require(gt)
+require(dplyr)
+
+
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server",
+                 Server = "SC01SLCWH\\SC01SLCWH",
+                 Database = "SLCWH")
+
+
+
+demo <- dbSendQuery(con, "WITH Demo1 AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, GRADE_LVL_NUMBER, STD_GENDER, EXIT_DATE,
+    CASE 
+        WHEN ETH_RACE = 'African American/Black' THEN 'Black'
+        WHEN ETH_RACE = 'Native American/Alaskan Native' THEN 'Indigenous People'
+        WHEN ETH_RACE = 'American Indian' THEN 'Indigenous People'
+        WHEN ETH_RACE = 'Hawaiian/Pacific Islander' OR ETH_RACE = 'Hawiian/Pacific Islander' THEN 'Pacific Islander'
+        ELSE ETH_RACE 
+    END AS ETH_RACE,
+    CASE 
+        WHEN (MAGNET_CA_FLAG = 1 OR MAGNET_ELP_FLAG = 1 OR MAGNET_ELP_INT_FLAG = 1) THEN 1
+        ELSE 0
+    END MELP_FLAG,    
+    NEIGHBORHOOD_ELP_FLAG, FAY_FLAG, SCH_TYPE,
+    ELL_FLAG, SWD_FLAG, LOW_INCOME_FLAG, REFUGEE_FLAG, DUAL_IMMER_FLAG, SLP_NETWORK
+    ,IS_ONE_PCT_FLAG, ELL_LVL, FIRST_ENROLLED_US
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+    
+    UNION ALL
+    SELECT DISTINCT STD_NUMBER, SYE, GRADE_LVL_NUMBER, STD_GENDER
+    , GETDATE() AS EXIT_DATE
+    , CASE 
+        WHEN ETH_RACE = 'African American/Black' THEN 'Black'
+        WHEN ETH_RACE = 'Native American/Alaskan Native' THEN 'Indigenous People'
+        WHEN ETH_RACE = 'American Indian' THEN 'Indigenous People'
+        WHEN ETH_RACE = 'Hawaiian/Pacific Islander' OR ETH_RACE = 'Hawiian/Pacific Islander' THEN 'Pacific Islander'
+        ELSE ETH_RACE 
+    END AS ETH_RACE,
+    CASE 
+        WHEN (MAGNET_ELP_FLAG = 1 OR MAGNET_ELP_INT_FLAG = 1) THEN 1
+        ELSE 0
+    END MELP_FLAG,
+    NEIGHBORHOOD_ELP_FLAG, FAY_FLAG, SCH_TYPE,
+    ELL_FLAG, SWD_FLAG, LOW_INCOME_FLAG, REFUGEE_FLAG, DUAL_IMMER_FLAG, SLP_NETWORK
+    ,IS_ONE_PCT_FLAG, ELL_LVL, FIRST_ENROLLED_US
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
+), 
+race1 AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, ETH_RACE,
+    ROW_NUMBER() OVER (PARTITION BY STD_NUMBER, SYE ORDER BY EXIT_DATE DESC) AS RaceCount
+    FROM Demo1
+), 
+race AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, ETH_RACE
+    FROM race1
+    WHERE RaceCount = 1
+),
+ELL AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, MAX(ELL_FLAG) AS ELL_FLAG
+    FROM Demo1
+    GROUP BY STD_NUMBER, SYE
+),
+MELP AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, MAX(MELP_FLAG) AS MELP_FLAG
+    FROM Demo1
+    GROUP BY STD_NUMBER, SYE
+),
+NELP AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, MAX(NEIGHBORHOOD_ELP_FLAG) AS NELP_FLAG
+    FROM Demo1
+    GROUP BY STD_NUMBER, SYE
+),
+SWD AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, MAX(SWD_FLAG) AS SWD_FLAG
+    FROM Demo1 
+    WHERE IS_ONE_PCT_FLAG = 0
+    GROUP BY STD_NUMBER, SYE
+),
+LowIncome AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, MAX(LOW_INCOME_FLAG) LOW_INCOME_FLAG
+    FROM Demo1
+    GROUP BY STD_NUMBER, SYE
+),
+GRADE_LVL AS
+(
+    SELECT DISTINCT STD_NUMBER, SYE, MAX(GRADE_LVL_NUMBER) AS GRADE_LVL_NUMBER
+    FROM Demo1 
+    GROUP BY STD_NUMBER, SYE
+),
+final1 AS
+(
+    SELECT DISTINCT 
+        D.STD_NUMBER,
+        D.SYE,
+        CONCAT(D.STD_NUMBER, D.SYE) StdSYE,
+        GR.GRADE_LVL_NUMBER,
+        R.ETH_RACE,
+        E.ELL_FLAG,
+        S.SWD_FLAG,
+        L.LOW_INCOME_FLAG,
+        m.MELP_FLAG,
+        N.NELP_FLAG,
+        CASE    
+            WHEN STD_GENDER = 'F' THEN 'Female'
+            WHEN STD_GENDER = 'M' THEN 'Male'
+            ELSE STD_GENDER
+        END AS STD_GENDER
+    FROM demo1 AS D
+    LEFT JOIN race AS R ON D.STD_NUMBER = R.STD_NUMBER AND D.SYE = R.SYE
+    LEFT JOIN ELL AS E ON D.STD_NUMBER = E.STD_NUMBER AND D.SYE = E.SYE
+    LEFT JOIN SWD AS S ON D.STD_NUMBER = S.STD_NUMBER AND D.SYE = S.SYE
+    LEFT JOIN LowIncome AS L ON D.STD_NUMBER = L.STD_NUMBER AND D.SYE = L.SYE 
+    LEFT JOIN MELP AS m ON D.STD_NUMBER = m.STD_NUMBER AND D.SYE = m.SYE 
+    LEFT JOIN NELP AS N ON D.STD_NUMBER = N.STD_NUMBER AND D.SYE = N.SYE
+    LEFT JOIN GRADE_LVL AS GR ON D.STD_NUMBER = GR.STD_NUMBER AND D.SYE = GR.SYE
+    WHERE d.sye > 2017
+),
+ schools1 as
+(
+select distinct STD_NUMBER, SCH_NAME_SHORT, sye, TITLE_I_FLAG
+, ROW_NUMBER() OVER (PARTITION BY STD_NUMBER, SYE ORDER BY EXIT_DATE DESC) LASTSCHOOL
+FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+
+),
+schools as
+(
+SELECT DISTINCT STD_NUMBER, SCH_NAME_SHORT, sye, TITLE_I_FLAG
+FROM SCHOOLS1
+WHERE LASTSCHOOL = 1
+),
+final AS
+(
+    SELECT 
+        f.STD_NUMBER, 
+        s.sye, 
+        SCH_NAME_SHORT, 
+        GRADE_LVL_NUMBER,
+        STD_GENDER, 
+        NELP_FLAG, 
+        MELP_FLAG,
+        ETH_RACE, 
+        ELL_FLAG, 
+        SWD_FLAG, 
+        LOW_INCOME_FLAG
+    FROM final1 f
+    LEFT JOIN schools s ON s.STD_NUMBER = f.STD_NUMBER AND s.SYE = f.SYE
+)
+SELECT *
+FROM final;")
+
+demo_data <- dbFetch(demo)
