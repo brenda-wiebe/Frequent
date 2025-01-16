@@ -1,0 +1,16 @@
+SELECT distinct
+    STD_NUMBER,
+    SYE,
+	SCH_NUMBER,
+	SCH_NAME_SHORT,
+	GRADE_LEVEL,
+    WINDOW,
+    MAX(perf_band_sort_new) as highest_score
+  FROM [ASSESSMENT_DATA_MART].[Assessment].[MASTER_RI]
+GROUP BY 
+   STD_NUMBER,
+    SYE,
+	SCH_NUMBER,
+	SCH_NAME_SHORT,
+	GRADE_LEVEL,
+    WINDOW
