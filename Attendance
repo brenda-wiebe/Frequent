@@ -1,0 +1,77 @@
+/****** Script for SelectTopNRows command from SSMS  ******/
+
+with src as (SELECT [STD_NUMBER]
+
+      ,[GRADE_LVL_NUMBER]
+
+      ,[SCH_NUMBER]
+
+      ,[SYE]
+
+      ,SUM([DAYS_ATTENDED]) as TOT_DAYS_ATTENDED
+
+         --,SUM([EXCUSED_ABSENCES])
+
+         --,SUM([UNEXCUSED_ABSENCES])
+
+      ,SUM([EXCUSED_ABSENCES]) + SUM([UNEXCUSED_ABSENCES]) as TOT_ABSENCES
+
+         ,IIF(SUM([TOTAL_MEMB]) = 0, NULL, (SUM([EXCUSED_ABSENCES]) + SUM([UNEXCUSED_ABSENCES]))/SUM([TOTAL_MEMB])) as PCT_ABSENT
+
+         ,IIF(IIF(SUM([TOTAL_MEMB]) = 0, NULL, (SUM([EXCUSED_ABSENCES]) + SUM([UNEXCUSED_ABSENCES]))/SUM([TOTAL_MEMB])) >= .1, 1, 0) as CHRONIC_ABSENT
+
+      ,SUM([TOTAL_MEMB]) as TOT_MEMB
+
+  FROM [DWH].[ASM].[STUDENT_ENROLLMENTS]
+
+  WHERE SYE in (2023,2022,2021)
+
+  AND GRADE_LVL_NUMBER in (9,10,11,12)
+
+  AND SCH_NUMBER in (704,708,750,748,300,700,716)
+
+  GROUP BY [STD_NUMBER]
+
+      ,[GRADE_LVL_NUMBER]
+
+      ,[SCH_NUMBER]
+
+      ,[SYE])
+
+ 
+
+         --SELECT *
+
+         --FROM(
+
+         SELECT [SCH_NUMBER]
+
+                  ,[SYE]
+
+                     ,AVG(CAST(CHRONIC_ABSENT as float)) as PCT_Chronic_Absent
+
+                     ,SUM(CAST(CHRONIC_ABSENT as float)) as Chronic_Absent_Count
+
+                     ,COUNT([STD_NUMBER]) as Total_Count
+
+         FROM src
+
+         GROUP BY [SCH_NUMBER]
+
+                  ,[SYE]
+
+                     ORDER BY [SCH_NUMBER]
+
+                  ,[SYE]
+
+--                   ) as sourcetable
+
+--       PIVOT 
+
+--( 
+
+--  avg(PCT_Chronic_Absent) 
+
+--  FOR [SYE] IN ([2021], [2022], [2023]) 
+
+--) AS PivotTable; 
