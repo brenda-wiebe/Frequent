@@ -1,0 +1,19 @@
+
+SELECT DISTINCT [STUDENT_NUMBER]
+
+      ,[Subject_Area]
+
+      ,[School_Year]
+      ,[School_Number]
+      ,[Enrolled_Grade]
+
+      ,MAX([Proficiency_Level]) [Proficiency_Level]
+    
+  FROM [ASSESSMENT_DATA_MART].[Assessment].[MASTER_RISE]
+  GROUP BY [STUDENT_NUMBER]
+
+      ,[Subject_Area]
+
+      ,[School_Year]
+      ,[School_Number]
+      ,[Enrolled_Grade]
