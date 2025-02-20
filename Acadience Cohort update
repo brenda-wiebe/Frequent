@@ -1,0 +1,213 @@
+WITH grade0 AS (
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade0,
+        SYE AS CohortkinderGradeSY
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 0
+    
+    UNION ALL
+    
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade0,
+        SYE AS CohortkinderGradeSY
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 0
+),
+
+grade1 AS (
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade1
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 1 
+    
+    UNION ALL
+    
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade1
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 1 
+),
+
+grade2 AS (
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade2
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 2
+    
+    UNION ALL 
+    
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade2
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 2
+),
+
+grade3 AS (
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade3
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 3
+    
+    UNION ALL
+    
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade3
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 3
+),
+
+-- New CTE for grade 4 to incorporate 2024 data
+grade4 AS (
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade4
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_EOY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 4
+    
+    UNION ALL
+    
+    SELECT 
+        STD_NUMBER, 
+        GRADE_LVL_NUMBER, 
+        SYE, 
+        SCH_NAME_SHORT AS Grade4
+    FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
+    WHERE FAY_FLAG = 1 
+      AND SYE > 2017
+      AND GRADE_LVL_NUMBER = 4
+),
+
+grade0to4 AS (
+    SELECT 
+        a.STD_NUMBER, 
+        CohortkinderGradeSY,
+        Grade0,
+        Grade1,
+        Grade2,
+        Grade3,
+        Grade4
+    FROM grade0 a
+    LEFT JOIN grade1 b ON a.STD_NUMBER = b.STD_NUMBER 
+    LEFT JOIN grade2 c ON a.STD_NUMBER = c.STD_NUMBER 
+    LEFT JOIN grade3 d ON a.STD_NUMBER = d.STD_NUMBER
+    LEFT JOIN grade4 e ON a.STD_NUMBER = e.STD_NUMBER
+),
+
+acadience AS (
+    SELECT  
+        [STUDENT_NUMBER],
+        [SCHOOL_YEAR],
+        [WINDOW],
+        [SCHOOL_NUMBER],
+        [GRADE_LEVEL],
+        [Composite_Level_full],
+        ROW_NUMBER() OVER(
+            PARTITION BY STUDENT_NUMBER, SCHOOL_YEAR, GRADE_LEVEL, [WINDOW] 
+            ORDER BY COMPOSITE_LEVEL_full DESC
+        ) AS maxcom
+    FROM [ASSESSMENT_DATA_MART].[Assessment].[MASTER_Acadience,Dibels]
+    WHERE School_Year > 2017
+),
+
+acadiencemax AS (
+    SELECT 
+        a.[STUDENT_NUMBER],
+        a.[SCHOOL_YEAR] AS [School Year],
+        CONCAT(a.[STUDENT_NUMBER], a.[SCHOOL_YEAR]) AS stdsye,
+        a.[WINDOW],
+        d.SCH_NAME_SHORT AS [School Name],
+        a.[GRADE_LEVEL] AS [Grade Level],
+        a.[Composite_Level_full]
+    FROM acadience a
+    LEFT JOIN [DWH].[CMN].[CDI_SCH_DIM] d ON a.SCHOOL_NUMBER = d.SCH_NUMBER
+    WHERE maxcom = 1
+),
+
+final AS (
+    SELECT 
+        a.*,
+        g.CohortkinderGradeSY,
+        g.Grade0,
+        g.Grade1,
+        g.Grade2,
+        g.Grade3,
+        g.Grade4,
+        CASE
+            -- Original cohort tracking logic
+            WHEN g.CohortkinderGradeSY = 2019 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2 AND g.grade0 = g.grade3) THEN g.Grade3
+            WHEN g.CohortkinderGradeSY = 2020 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2 AND g.grade0 = g.grade3) THEN g.Grade3
+            WHEN g.CohortkinderGradeSY = 2021 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2 AND g.grade0 = g.grade3) THEN g.Grade3
+            WHEN g.CohortkinderGradeSY = 2022 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2) THEN g.Grade2
+            WHEN g.CohortkinderGradeSY = 2023 AND (g.grade0 = g.grade1) THEN g.Grade1
+            -- New 2024 cohort tracking
+            WHEN g.CohortkinderGradeSY = 2019 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2 AND g.grade0 = g.grade3 AND g.grade0 = g.grade4) THEN g.Grade4
+            WHEN g.CohortkinderGradeSY = 2020 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2 AND g.grade0 = g.grade3 AND g.grade0 = g.grade4) THEN g.Grade4
+            WHEN g.CohortkinderGradeSY = 2021 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2 AND g.grade0 = g.grade3) THEN g.Grade3
+            WHEN g.CohortkinderGradeSY = 2022 AND (g.grade0 = g.grade1 AND g.grade0 = g.grade2) THEN g.Grade2
+            WHEN g.CohortkinderGradeSY = 2023 AND (g.grade0 = g.grade1) THEN g.Grade1
+            WHEN g.CohortkinderGradeSY = 2024 THEN g.Grade0
+            ELSE NULL
+        END AS cohortSchool
+    FROM acadiencemax a
+    LEFT JOIN grade0to4 g ON a.STUDENT_NUMBER = g.STD_NUMBER
+    WHERE [Grade Level] IN (0, 1, 2, 3, 4)  -- Added grade 4
+)
+
+SELECT DISTINCT
+    STUDENT_NUMBER, 
+    stdsye AS StdSYE, 
+    [School Year] AS testyear,  
+    [School Name] AS testschool, 
+    [Grade Level],
+    [Composite_Level_full],
+    CohortkinderGradeSY,
+    WINDOW,
+    cohortSchool
+FROM final 
+WHERE cohortSchool IS NOT NULL
+  AND STUDENT_NUMBER IS NOT NULL
+ORDER BY stdsye;
