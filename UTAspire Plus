@@ -1,0 +1,14 @@
+SELECT DISTINCT
+    [SCHOOL_YEAR],
+    [STUDENT_NUMBER],
+    [SUBJECT_AREA],
+    Grade,           
+    SCH_NUMBER, 
+    MAX([Proficient]) as MaxProficiency
+FROM [ASSESSMENT_DATA_MART].[Assessment].[MASTER_UTAspirePlus]
+GROUP BY 
+    [SCHOOL_YEAR],
+    [STUDENT_NUMBER],
+    [SUBJECT_AREA],
+	Grade,           
+    SCH_NUMBER
