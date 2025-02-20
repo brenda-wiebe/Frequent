@@ -1,0 +1,16 @@
+SELECT 
+    SYE,
+    STD_NUMBER,
+    GRADE_LEVEL,
+    SCHOOL_NUMBER,
+    MAX(Scale_Scores_English) as Max_English,
+    MAX(Scale_Scores_Mathematics) as Max_Mathematics,
+    MAX(Scale_Scores_Reading) as Max_Reading,
+    MAX(Scale_Scores_Science) as Max_Science,
+    MAX(Scale_Scores_Composite) as Max_Composite
+FROM [ASSESSMENT_DATA_MART].[Assessment].[MASTER_ACT]
+GROUP BY 
+    SYE,
+    STD_NUMBER,
+    GRADE_LEVEL,
+    SCHOOL_NUMBER
