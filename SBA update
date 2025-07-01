@@ -1,0 +1,38 @@
+# Load required libraries
+library(DBI)
+library(odbc)
+library(readxl)
+
+# File path
+excel_file <- "S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2024-25/Folder by project/IBPAs/SBA/SBA 2025.xlsx"
+
+# Read the Excel file
+# You may need to specify the sheet name if there are multiple sheets
+fnl <- read_excel(excel_file)
+
+# Alternative if you need to specify a sheet:
+# fnl <- read_excel(excel_file, sheet = "Sheet1")  # Replace "Sheet1" with actual sheet name
+
+# Establish database connection (assuming you already have 'con' established)
+# If you don't have the connection, here's an example setup:
+ con <- dbConnect(odbc::odbc(),
+                  Driver = "SQL Server",
+                  Server = "SC01SLCWH\\SC01SLCWH",
+                  Database = "SLCWH",
+                  Trusted_Connection = "yes")
+
+# Write to database
+dbWriteTable(con,
+             SQL('ASSESSMENT_DATA_MART.Assessment.[1_SBA_2025]'),
+             fnl,
+             overwrite = TRUE,
+             append = FALSE,
+             row.names = FALSE,  # Changed from NULL to FALSE
+             field.types = NULL)
+
+# Verify the data was written successfully
+result <- dbGetQuery(con, "SELECT COUNT(*) as row_count FROM ASSESSMENT_DATA_MART.Assessment.[1_SBA_2025]")
+print(paste("Records written:", result$row_count))
+
+# Close connection when done
+# dbDisconnect(con)
