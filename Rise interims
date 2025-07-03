@@ -1,0 +1,80 @@
+# Required packages
+library(qualtRics)
+library(odbc)
+library(DBI)
+library(tidyverse)
+
+# Connect to database
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server",
+                 Server = "SC01SLCWH\\SC01SLCWH",
+                 Database = "ASSESSMENT_DATA_MART")
+
+
+# Read the Excel file directly
+library(readxl)
+rise <- read_excel("S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2024-25/IBPAs/RISE interims/Rise SYE 24 25.xlsx", 
+                     sheet = 1)
+
+
+# Remove empty columns (columns with names like ...22, ...23, etc.)
+rise_clean <- rise %>%
+  select(-starts_with("..."))
+
+
+str(rise_clean)
+
+
+
+# Function to convert Excel serial numbers to fractions
+convert_excel_score <- function(score) {
+  # Check if it's a numeric string in the Excel date range
+  if (str_detect(score, "^4[5-6][0-9]{3}$")) {
+    # Convert to date
+    score_date <- as.Date(as.numeric(score), origin = "1899-12-30")
+    # Return as fraction
+    return(paste0(day(score_date), "/", month(score_date)))
+  } else {
+    # Return as is
+    return(score)
+  }
+}
+
+# Apply the conversion
+rise_clean <- rise_clean %>%
+  mutate(Score_fixed = map_chr(Score, convert_excel_score))
+
+# Check the conversion
+rise_clean %>% 
+  select(Score, Score_fixed) %>%
+  filter(Score != Score_fixed) %>%
+  head(20)
+
+
+
+# Check what we have now
+table(rise_clean$Score_fixed)
+
+# Look at some examples
+rise_clean %>% 
+  select(Score, Score_fixed) %>%
+  slice(1:30)
+
+
+# Replace the original Score column
+rise_clean <- rise_clean %>%
+  select(-Score) %>%
+  rename(Score = Score_fixed)
+
+# Check the final result
+table(rise_clean$Score)
+
+
+dbWriteTable(conn = con,
+             name = SQL(paste0("[ASSESSMENT_DATA_MART].[Assessment].[1_Rise_Interims_Benchmarks]")),
+             value = rise_clean,
+             overwrite = TRUE)
+
+
+
+
