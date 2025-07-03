@@ -1,0 +1,88 @@
+# Required packages
+library(qualtRics)
+library(odbc)
+library(DBI)
+library(tidyverse)
+
+# Connect to database
+con <- dbConnect(odbc(),
+                 Driver = "SQL Server",
+                 Server = "SC01SLCWH\\SC01SLCWH",
+                 Database = "ASSESSMENT_DATA_MART")
+
+
+
+
+ibpa <- dbGetQuery(con, "SELECT   [Assessment]
+,[Student Id]
+,[SSID]
+,[First Name]
+,[Last Name]
+,[Birth Date]
+,[Grade Level]
+,[Date Taken]
+,[Number Correct]
+,[Number Possible]
+,[% Correct]
+,[Performance Band]
+,[Performance Band Level]
+FROM [ASSESSMENT_DATA_MART].[Assessment].[zIBPA Math sy2023]
+union all
+SELECT   [Assessment]
+,[Student Id]
+,[SSID]
+,[First Name]
+,[Last Name]
+,[Birth Date]
+,[Grade Level]
+,[Date Taken]
+,[Number Correct]
+,[Number Possible]
+,[% Correct]
+,[Performance Band]
+,[Performance Band Level]
+FROM [ASSESSMENT_DATA_MART].[Assessment].[zIBPA math Sy2024]
+union all
+SELECT   [Assessment]
+,[Student Id]
+,[SSID]
+,[First Name]
+,[Last Name]
+,[Birth Date]
+,[Grade Level]
+,[Date Taken]
+,[Number Correct]
+,[Number Possible]
+,[% Correct]
+,[Performance Band]
+,[Performance Band Level]
+FROM [ASSESSMENT_DATA_MART].[Assessment].[1_Math_IBPA_CSY];")
+
+
+library(stringr)
+ibpa$IBPA_Number <- as.numeric(gsub(".*IBPA\\s+(\\d+).*", "\\1", ibpa$Assessment))
+
+head(ibpa[c("Assessment", "IBPA_Number")])
+str(ibpa)
+
+
+# Check all unique IBPA numbers in your dataset
+unique(ibpa$IBPA_Number)
+
+# Or see the count of each IBPA number
+table(ibpa$IBPA_Number)
+
+# Or see some examples of different Assessment types with their extracted numbers
+ibpa[c("Assessment", "IBPA_Number")] %>% 
+  distinct() %>% 
+  head(10)
+
+
+
+dbWriteTable(conn = con,
+             name = SQL(paste0("[ASSESSMENT_DATA_MART].[Assessment].[1_IBPA]")),
+             value = ibpa,
+             overwrite = TRUE)
+
+
+
