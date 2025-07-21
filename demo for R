@@ -1,32 +1,9 @@
 
-require(tidyverse)
-require(openxlsx)
-require(odbc)
-require(DBI)
-require(ggplot2)
-require(gridExtra)
-require(viridis)
-require(gt)
-require(dplyr)
-
-
-con <- dbConnect(odbc(),
-                 Driver = "SQL Server",
-                 Server = "SC01SLCWH\\SC01SLCWH",
-                 Database = "SLCWH")
-
-
 
 demo <- dbSendQuery(con, "WITH Demo1 AS
 (
     SELECT DISTINCT STD_NUMBER, SYE, GRADE_LVL_NUMBER, STD_GENDER, EXIT_DATE,
-    CASE 
-        WHEN ETH_RACE = 'African American/Black' THEN 'Black'
-        WHEN ETH_RACE = 'Native American/Alaskan Native' THEN 'Indigenous People'
-        WHEN ETH_RACE = 'American Indian' THEN 'Indigenous People'
-        WHEN ETH_RACE = 'Hawaiian/Pacific Islander' OR ETH_RACE = 'Hawiian/Pacific Islander' THEN 'Pacific Islander'
-        ELSE ETH_RACE 
-    END AS ETH_RACE,
+  ETH_RACE,
     CASE 
         WHEN (MAGNET_CA_FLAG = 1 OR MAGNET_ELP_FLAG = 1 OR MAGNET_ELP_INT_FLAG = 1) THEN 1
         ELSE 0
@@ -39,13 +16,7 @@ demo <- dbSendQuery(con, "WITH Demo1 AS
     UNION ALL
     SELECT DISTINCT STD_NUMBER, SYE, GRADE_LVL_NUMBER, STD_GENDER
     , GETDATE() AS EXIT_DATE
-    , CASE 
-        WHEN ETH_RACE = 'African American/Black' THEN 'Black'
-        WHEN ETH_RACE = 'Native American/Alaskan Native' THEN 'Indigenous People'
-        WHEN ETH_RACE = 'American Indian' THEN 'Indigenous People'
-        WHEN ETH_RACE = 'Hawaiian/Pacific Islander' OR ETH_RACE = 'Hawiian/Pacific Islander' THEN 'Pacific Islander'
-        ELSE ETH_RACE 
-    END AS ETH_RACE,
+    ,ETH_RACE,
     CASE 
         WHEN (MAGNET_ELP_FLAG = 1 OR MAGNET_ELP_INT_FLAG = 1) THEN 1
         ELSE 0
@@ -170,15 +141,18 @@ final AS
 SELECT *
 FROM final;")
 
-	 el_data <- dbFetch(el)
-	 el_data <- el_data %>%
-	   mutate(
-	     ETH_RACE_CLEAN = case_when(
-	       ETH_RACE == "African American/Black" ~ "Black",
-	       ETH_RACE == "Native American\\Alaskan Native" ~ "Indigenous People",
-	       ETH_RACE == "American Indian" ~ "Indigenous People", 
-	       ETH_RACE == "Hawaiian\\Pacific Islander" ~ "Pacific Islander",
-	       ETH_RACE == "Hawiian\\Pacific Islander" ~ "Pacific Islander",
-	       TRUE ~ ETH_RACE
-	     )
-	   )
+demo_data <- dbFetch(demo)
+
+
+
+demo_data <- demo_data %>%
+  mutate(
+    ETH_RACE_CLEAN = case_when(
+      ETH_RACE == "African American/Black" ~ "Black",
+      ETH_RACE == "Native American\\Alaskan Native" ~ "Indigenous People",
+      ETH_RACE == "American Indian" ~ "Indigenous People", 
+      ETH_RACE == "Hawaiian\\Pacific Islander" ~ "Pacific Islander",
+      ETH_RACE == "Hawiian\\Pacific Islander" ~ "Pacific Islander",
+      TRUE ~ ETH_RACE
+    )
+  )
