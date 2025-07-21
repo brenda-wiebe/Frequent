@@ -170,4 +170,15 @@ final AS
 SELECT *
 FROM final;")
 
-demo_data <- dbFetch(demo)
+	 el_data <- dbFetch(el)
+	 el_data <- el_data %>%
+	   mutate(
+	     ETH_RACE_CLEAN = case_when(
+	       ETH_RACE == "African American/Black" ~ "Black",
+	       ETH_RACE == "Native American\\Alaskan Native" ~ "Indigenous People",
+	       ETH_RACE == "American Indian" ~ "Indigenous People", 
+	       ETH_RACE == "Hawaiian\\Pacific Islander" ~ "Pacific Islander",
+	       ETH_RACE == "Hawiian\\Pacific Islander" ~ "Pacific Islander",
+	       TRUE ~ ETH_RACE
+	     )
+	   )
