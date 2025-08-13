@@ -44,7 +44,7 @@ GROUP BY [Completion_Code]
 
 grad_stat <- dbFetch(grad_stat)
 
-# MISSING FROM SECOND CODE: Create grad_status table with proper filtering and mapping
+# Create grad_status table with proper filtering and mapping
 grad_status <- grad_stat %>%
   mutate(GRAD_STATUS = if_else(hs_completion_status %in% c('GP', 'CT', 'G3', 'GG'), 'Graduate', GRAD_STATUS)) %>%
   mutate(include = case_when(hs_completion_status == 'DO' ~ 1,
@@ -53,14 +53,14 @@ grad_status <- grad_stat %>%
                              TRUE ~ 1)) %>%
   filter(include == 1)
 
-# MISSING FROM SECOND CODE: Get school names
+# Get school names
 sch_name <- dbSendQuery(con, "SELECT SCH_NUMBER, SCH_NAME_SHORT
   FROM [DWH].[ASM].[STUDENT_DEMOGRAPHICS_CSY]
   GROUP BY SCH_NUMBER, SCH_NAME_SHORT")
 
 sch_name <- dbFetch(sch_name)
 
-# MISSING FROM SECOND CODE: Get schedule data for IB, AP, and AVID programs
+# Get schedule data for IB, AP, and AVID programs
 Sched <- dbSendQuery(con, "SELECT [STD_NUMBER] as STD_NUM
 ,MAX(IIF([COURSE_TYPE] like '%IB%', 1, 0)) as [IB_Class]
 ,MAX(IIF([COURSE_TYPE] like '%Advanced%' or [COURSE_TYPE] like '%AP%', 1, 0)) as [AP_Class]
@@ -70,7 +70,7 @@ GROUP BY [STD_NUMBER]")
 
 Sched <- dbFetch(Sched)
 
-# MISSING FROM SECOND CODE: Get middle school data
+# Get middle school data
 Middle <- dbSendQuery(con, "SELECT [STD_NUMBER] as std_n
       ,MAX(IIF([GRADE_LVL_NUMBER] = 7, [SCH_NUMBER], NULL)) as [7th_GR_SCH]
 	  ,MAX(IIF([GRADE_LVL_NUMBER] = 8, [SCH_NUMBER], NULL)) as [8th_GR_SCH]
@@ -103,28 +103,27 @@ GROUP BY STD_NUMBER")
 
 last_grade <- dbFetch(last_grade)
 
-# Read 2025 graduation data files (updated from 2024)
-SLCSD_2025 <- read.csv('S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2024-25/Folder by Project/Graduation/Grad Rate & HS Completion/Salt Lake District_hs_completion_status.csv')
+# Read 2025 graduation data files
+SLCSD_2025 <- read.csv('S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2025-26/Projects/Graduation/Salt Lake District_hs_completion_status.csv')
 
-SLCSE_2025 <- read.csv('S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2024-25/Folder by Project/Graduation/Grad Rate & HS Completion/Salt Lake Center for Science Education_hs_completion_status.csv')
+SLCSE_2025 <- read.csv('S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2025-26/Projects/Graduation/Salt Lake Center for Science Education_hs_completion_status.csv')
 
-SPA_2025 <- read.csv('S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2024-25/Folder by Project/Graduation/Grad Rate & HS Completion/Salt Lake School for the Performing Arts_hs_completion_status.csv')
+SPA_2025 <- read.csv('S:/536_SHARED/ASSESSMENT_EVALUATION/Research and Data/2025-26/Projects/Graduation/Salt Lake School for the Performing Arts_hs_completion_status.csv')
 
 All_District_2025 <- rbind(SLCSD_2025,SLCSE_2025,SPA_2025)
 
-# Debug: Check for duplicates in lookup tables before joining
-print("Checking for duplicates in lookup tables:")
-print(paste("grad_status duplicates:", sum(duplicated(grad_status$hs_completion_status))))
-print(paste("sch_name duplicates:", sum(duplicated(sch_name$SCH_NUMBER))))
-print(paste("Demo duplicates:", sum(duplicated(Demo$SSID))))
+# Debug: Check what year is in the CSV files
+print("=== CHECKING CSV COHORT YEARS ===")
+print("Unique cohort_year values in CSV files:")
+print(unique(All_District_2025$cohort_year))
 
 # Process 2025 data with all required joins and transformations
 final_2025 <- All_District_2025 %>%
-  # Join with Demo first to get STD_NUMBER and names
-  left_join(Demo %>% select(-SYE), by = c("Ssid" = "SSID")) %>%
+  # Join with Demo first to get STD_NUMBER and names (EXCLUDE SYE to prevent overwriting)
+  left_join(Demo %>% select(SSID, STD_NUMBER, FIRST_NAME, LAST_NAME, STUDENT_ZIP), by = c("Ssid" = "SSID")) %>%
   mutate(
-    # Convert character "True"/"False" to logical TRUE/FALSE
-    across(ends_with("_flag"), ~.x == "True"),
+    # Convert character "TRUE"/"FALSE" to logical TRUE/FALSE (note: all caps)
+    across(ends_with("_flag"), ~.x == "TRUE"),
     # Create ETH_RACE based on the flag columns
     ETH_RACE = case_when(
       asian_flag ~ 'Asian',
@@ -143,14 +142,14 @@ final_2025 <- All_District_2025 %>%
   rename(
     SSID = Ssid,
     SCH_NUMBER = school_nbr,
-    SYE = cohort_year,
+    SYE = cohort_year,  # Use cohort_year from CSV (which is 2025)
     Completion_Code = hs_completion_status
   ) %>%
   # Join with school names - use distinct to avoid duplicates
   left_join(sch_name %>% distinct(SCH_NUMBER, .keep_all = TRUE), by = c("SCH_NUMBER" = "SCH_NUMBER")) %>%
-  # Join with schedule data
+  # Join with schedule data  
   left_join(Sched, by = c("STD_NUMBER" = "STD_NUM")) %>%
-  # FIXED: Join with graduation status using distinct records only
+  # Join with graduation status using distinct records only
   left_join(grad_status %>% 
               distinct(hs_completion_status, .keep_all = TRUE) %>%
               select(hs_completion_status, GRAD_COMPLETION_DESC, GRAD_STATUS, include), 
@@ -159,6 +158,8 @@ final_2025 <- All_District_2025 %>%
   left_join(Middle, by = c("STD_NUMBER" = "std_n")) %>%
   # Join with last grade level data
   left_join(last_grade, by = "STD_NUMBER") %>%
+  # ENSURE SYE stays 2025 after all joins
+  mutate(SYE = 2025) %>%
   # Replace NA values and create derived columns
   mutate(
     IB_Class = coalesce(IB_Class, 0),
@@ -220,6 +221,9 @@ final_2025 <- All_District_2025 %>%
 # Print diagnostics
 print(paste("Number of input rows:", nrow(All_District_2025)))
 print(paste("Number of output rows:", nrow(final_2025)))
+print("=== FINAL SYE CHECK ===")
+print("SYE values in final dataset:")
+print(table(final_2025$SYE, useNA = "ifany"))
 
 # Enhanced data validation function
 validate_data <- function(df) {
@@ -265,12 +269,13 @@ validate_data <- function(df) {
 
 validate_data(final_2025)
 
-# Write to database using the dynamic table name approach from the first code
-table_name <- paste0("[ASSESSMENT_DATA_MART].[Assessment].[MASTER_GRADUATION25]")
-                     
+# Write to database using the correct table name for 2025
+table_name <- "[ASSESSMENT_DATA_MART].[Assessment].[MASTER_GRADUATION2025]"
 dbWriteTable(con, SQL(table_name), final_2025, overwrite = TRUE)
 
+print(paste("Successfully wrote", nrow(final_2025), "records to", table_name))
+
 # Optional: Also write to CSV file for backup
-# write.csv(final_2024, paste0("MASTER_GRADUATION", max(final_2024$SYE, na.rm = TRUE), ".csv"), row.names = FALSE)
+# write.csv(final_2025, "MASTER_GRADUATION2025.csv", row.names = FALSE)
 
 dbDisconnect(con)
